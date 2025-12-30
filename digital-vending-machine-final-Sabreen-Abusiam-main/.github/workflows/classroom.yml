@@ -1,0 +1,2604 @@
+name: Autograding Tests
+on:
+  push:
+  repository_dispatch:
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download original test files from GitHub
+        run: |
+          echo "📥 Downloading official test files from GitHub repository..."
+          echo "🔗 Source: https://github.com/niro1001/Tests/tree/main/tests"
+          echo ""
+
+          # Backup student's tests directory (if they modified it)
+          if [ -d "tests" ]; then
+            echo "📦 Backing up student's test directory..."
+            mv tests tests_student_backup
+          fi
+
+          # Create fresh tests directory
+          mkdir -p tests
+
+          # Base URL for raw content from GitHub
+          BASE_URL="https://raw.githubusercontent.com/niro1001/Tests/main/tests"
+
+          # Download all test files
+          echo "⬇️  Downloading all test files..."
+          DOWNLOAD_COUNT=0
+
+          # Download tb_ex00_hello.v
+          if wget -q "${BASE_URL}/tb_ex00_hello.v" -O "tests/tb_ex00_hello.v" 2>/dev/null; then
+            DOWNLOAD_COUNT=$((DOWNLOAD_COUNT + 1))
+          fi
+
+          # Download tb_ex00.v through tb_ex50.v
+          for i in $(seq -w 0 50); do
+            if wget -q "${BASE_URL}/tb_ex${i}.v" -O "tests/tb_ex${i}.v" 2>/dev/null; then
+              DOWNLOAD_COUNT=$((DOWNLOAD_COUNT + 1))
+            fi
+          done
+
+          # Download Week5 test files (tb_week5_*.v)
+          echo "⬇️  Downloading Week5 test files..."
+          WEEK5_TESTS=(
+            "tb_week5_ex1_not_always.v"
+            "tb_week5_ex1_not_assign.v"
+            "tb_week5_ex1_and_always.v"
+            "tb_week5_ex1_and_assign.v"
+            "tb_week5_ex1_or_always.v"
+            "tb_week5_ex1_or_assign.v"
+            "tb_week5_ex1_xor_always.v"
+            "tb_week5_ex1_xor_assign.v"
+            "tb_week5_ex1_nand_always.v"
+            "tb_week5_ex1_nand_assign.v"
+            "tb_week5_ex1_nor_always.v"
+            "tb_week5_ex1_nor_assign.v"
+            "tb_week5_ex2_mux_always.v"
+            "tb_week5_ex2_mux_assign.v"
+            "tb_week5_ex2_mux_structural.v"
+            "tb_week5_ex2_decoder_always.v"
+            "tb_week5_ex2_decoder_assign.v"
+            "tb_week5_ex2_decoder_structural.v"
+            "tb_week5_ex2_encoder_always.v"
+            "tb_week5_ex2_encoder_assign.v"
+            "tb_week5_ex2_encoder_structural.v"
+            "tb_week5_ex3_truth_table_always.v"
+            "tb_week5_ex3_truth_table_assign.v"
+            "tb_week5_ex3_truth_table_structural.v"
+            "tb_week5_ex4_simple_circuit_always.v"
+            "tb_week5_ex4_simple_circuit_assign.v"
+            "tb_week5_ex4_simple_circuit_structural.v"
+            "tb_week5_ex5_advanced_circuit_always.v"
+            "tb_week5_ex5_advanced_circuit_assign.v"
+            "tb_week5_ex5_advanced_circuit_structural.v"
+            "tb_week5_ex6_challenge_circuit_always.v"
+            "tb_week5_ex6_challenge_circuit_assign.v"
+            "tb_week5_ex6_challenge_circuit_structural.v"
+          )
+
+          for testfile in "${WEEK5_TESTS[@]}"; do
+            if wget -q "${BASE_URL}/${testfile}" -O "tests/${testfile}" 2>/dev/null; then
+              DOWNLOAD_COUNT=$((DOWNLOAD_COUNT + 1))
+            fi
+          done
+
+          echo "✅ Downloaded ${DOWNLOAD_COUNT} test files from GitHub"
+
+          # Count downloaded files
+          FILE_COUNT=$(find tests -name "tb_*.v" -type f | wc -l)
+
+          echo ""
+          echo "📊 Download Summary:"
+          echo "   Downloaded: ${FILE_COUNT} test files"
+          echo "   Expected: 85 tests (52 ex tests + 33 Week5 tests)"
+
+          if [ "${FILE_COUNT}" -lt 80 ]; then
+            echo ""
+            echo "❌ ERROR: Failed to download test files (only ${FILE_COUNT} files, expected 85)"
+            echo "🔄 Attempting to use local test files as fallback..."
+            
+            # Restore student's tests if download failed
+            if [ -d "tests_student_backup" ]; then
+              rm -rf tests
+              mv tests_student_backup tests
+              FILE_COUNT=$(ls -1 tests/tb_*.v 2>/dev/null | wc -l)
+              echo "✅ Using local tests: ${FILE_COUNT} files"
+            else
+              echo "❌ No fallback tests available"
+              exit 1
+            fi
+          else
+            echo "✅ Successfully downloaded test files from Google Drive"
+            echo "🔒 Using OFFICIAL tests - student cannot modify"
+            
+            # Verify all 85 expected tests are present
+            echo ""
+            echo "🔍 Verifying all 85 tests are present..."
+            MISSING_COUNT=0
+            FILLED_COUNT=0
+            
+            # Check for tb_ex00_hello.v
+            if [ ! -f "tests/tb_ex00_hello.v" ]; then
+              MISSING_COUNT=$((MISSING_COUNT + 1))
+              # Copy from local backup if available
+              if [ -f "tests_student_backup/tb_ex00_hello.v" ]; then
+                cp "tests_student_backup/tb_ex00_hello.v" "tests/tb_ex00_hello.v"
+                echo "   📋 Filled missing tb_ex00_hello.v from local repository"
+                FILLED_COUNT=$((FILLED_COUNT + 1))
+              else
+                echo "   ⚠️  Missing: tb_ex00_hello.v (not in Google Drive or local)"
+              fi
+            fi
+            
+            # Check for tb_ex00.v through tb_ex50.v
+            for i in $(seq -w 0 50); do
+              if [ ! -f "tests/tb_ex${i}.v" ]; then
+                MISSING_COUNT=$((MISSING_COUNT + 1))
+                # Copy from local backup if available
+                if [ -f "tests_student_backup/tb_ex${i}.v" ]; then
+                  cp "tests_student_backup/tb_ex${i}.v" "tests/tb_ex${i}.v"
+                  echo "   📋 Filled missing tb_ex${i}.v from local repository"
+                  FILLED_COUNT=$((FILLED_COUNT + 1))
+                else
+                  echo "   ⚠️  Missing: tb_ex${i}.v (not in Google Drive or local)"
+                fi
+              fi
+            done
+            
+            # Check for Week5 test files
+            for testfile in "${WEEK5_TESTS[@]}"; do
+              if [ ! -f "tests/${testfile}" ]; then
+                MISSING_COUNT=$((MISSING_COUNT + 1))
+                # Copy from local backup if available
+                if [ -f "tests_student_backup/${testfile}" ]; then
+                  cp "tests_student_backup/${testfile}" "tests/${testfile}"
+                  echo "   📋 Filled missing ${testfile} from local repository"
+                  FILLED_COUNT=$((FILLED_COUNT + 1))
+                else
+                  echo "   ⚠️  Missing: ${testfile} (not in Google Drive or local)"
+                fi
+              fi
+            done
+            
+            echo ""
+            if [ ${MISSING_COUNT} -eq 0 ]; then
+              echo "✅ All 85 test files present from Google Drive!"
+            else
+              echo "📊 Missing from Google Drive: ${MISSING_COUNT} tests"
+              echo "📋 Filled from local repository: ${FILLED_COUNT} tests"
+              GDRIVE_COUNT=$((85 - MISSING_COUNT))
+              echo "✅ Final status: ${GDRIVE_COUNT} from Google Drive + ${FILLED_COUNT} from local = $((GDRIVE_COUNT + FILLED_COUNT)) total tests"
+            fi
+            
+            # Remove student backup after filling missing tests
+            rm -rf tests_student_backup
+          fi
+
+          # Verify test files contain PASS/FAIL messages
+          echo ""
+          echo "🔍 Validating test files contain PASS/FAIL messages..."
+          VALID_COUNT=0
+          for testfile in tests/tb_*.v; do
+            if [ -f "$testfile" ]; then
+              if grep -q "PASS\|FAIL" "$testfile"; then
+                VALID_COUNT=$((VALID_COUNT + 1))
+              fi
+            fi
+          done
+
+          echo "✅ ${VALID_COUNT}/${FILE_COUNT} test files contain PASS/FAIL checks"
+
+          # Show checksums for integrity verification
+          echo ""
+          echo "📋 Test files checksums (first 10):"
+          sha256sum tests/tb_*.v 2>/dev/null | head -10
+
+          # Make tests read-only
+          chmod -R 444 tests/*.v
+
+          echo ""
+          echo "📝 Available test files:"
+          ls -lh tests/*.v | head -20
+
+      - name: Setup Icarus Verilog
+        run: |
+          echo "📦 Installing Icarus Verilog..."
+          sudo apt-get update -qq
+          sudo apt-get install -y iverilog
+          iverilog -V
+          echo "✅ Icarus Verilog installed successfully"
+
+      - name: Check Solution Files Are Empty
+        run: |
+          echo "🔍 Checking that solution files (week5) are empty or minimal..."
+          echo ""
+
+          # List of week5 solution files to check
+          WEEK5_FILES=(
+            "week5/week5_ex1_not_always.v"
+            "week5/week5_ex1_not_assign.v"
+            "week5/week5_ex1_and_always.v"
+            "week5/week5_ex1_and_assign.v"
+            "week5/week5_ex1_or_always.v"
+            "week5/week5_ex1_or_assign.v"
+            "week5/week5_ex1_xor_always.v"
+            "week5/week5_ex1_xor_assign.v"
+            "week5/week5_ex1_nand_always.v"
+            "week5/week5_ex1_nand_assign.v"
+            "week5/week5_ex1_nor_always.v"
+            "week5/week5_ex1_nor_assign.v"
+            "week5/week5_ex2_mux_always.v"
+            "week5/week5_ex2_mux_assign.v"
+            "week5/week5_ex2_mux_structural.v"
+            "week5/week5_ex2_decoder_always.v"
+            "week5/week5_ex2_decoder_assign.v"
+            "week5/week5_ex2_decoder_structural.v"
+            "week5/week5_ex2_encoder_always.v"
+            "week5/week5_ex2_encoder_assign.v"
+            "week5/week5_ex2_encoder_structural.v"
+            "week5/week5_ex3_truth_table_always.v"
+            "week5/week5_ex3_truth_table_assign.v"
+            "week5/week5_ex3_truth_table_structural.v"
+            "week5/week5_ex4_simple_circuit_always.v"
+            "week5/week5_ex4_simple_circuit_assign.v"
+            "week5/week5_ex4_simple_circuit_structural.v"
+            "week5/week5_ex5_advanced_circuit_always.v"
+            "week5/week5_ex5_advanced_circuit_assign.v"
+            "week5/week5_ex5_advanced_circuit_structural.v"
+            "week5/week5_ex6_challenge_circuit_always.v"
+            "week5/week5_ex6_challenge_circuit_assign.v"
+            "week5/week5_ex6_challenge_circuit_structural.v"
+          )
+
+          EMPTY_COUNT=0
+          NON_EMPTY_COUNT=0
+          TOTAL_COUNT=0
+
+          for file in "${WEEK5_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              TOTAL_COUNT=$((TOTAL_COUNT + 1))
+              # Count non-comment, non-whitespace lines (excluding module declaration and endmodule)
+              # A file is considered "empty" if it only has comments, module declaration, and endmodule
+              CONTENT_LINES=$(grep -v '^\s*//' "$file" | grep -v '^\s*$' | grep -v '^\s*module' | grep -v '^\s*endmodule' | grep -v '^\s*);' | grep -v '^\s*(' | wc -l)
+              
+              if [ "$CONTENT_LINES" -eq 0 ]; then
+                EMPTY_COUNT=$((EMPTY_COUNT + 1))
+                echo "✅ $(basename "$file"): Empty (OK)"
+              else
+                NON_EMPTY_COUNT=$((NON_EMPTY_COUNT + 1))
+                echo "⚠️  $(basename "$file"): Contains implementation (${CONTENT_LINES} lines of code)"
+              fi
+            else
+              echo "❌ $(basename "$file"): File not found"
+            fi
+          done
+
+          echo ""
+          echo "📊 Solution Files Check Summary:"
+          echo "   Total files checked: ${TOTAL_COUNT}"
+          echo "   Empty files: ${EMPTY_COUNT}"
+          echo "   Files with implementation: ${NON_EMPTY_COUNT}"
+          echo ""
+
+          if [ ${NON_EMPTY_COUNT} -gt 0 ]; then
+            echo "⚠️  WARNING: Some solution files contain implementation code"
+            echo "   This is expected if students have started working on the exercises"
+          else
+            echo "✅ All solution files are empty (as expected for initial state)"
+          fi
+
+      - name: test_ex00_hello
+        id: test_ex00_hello
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex00_hello
+          command: |
+            iverilog -o sim_ex00_hello tests/tb_ex00_hello.v part00_intro/ex00_hello.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex00_hello > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex00
+        id: test_ex00
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex00
+          command: |
+            iverilog -o sim_ex00 tests/tb_ex00.v part00_intro/ex00.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex00 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex01
+        id: test_ex01
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex01
+          setup-command:
+          command: |
+            iverilog -o sim_ex01 tests/tb_ex01.v part01_repr/ex01.v
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex01 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex02
+        id: test_ex02
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex02
+          setup-command:
+          command: |
+            iverilog -o sim_ex02 tests/tb_ex02.v part01_repr/ex02.v
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex02 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex03
+        id: test_ex03
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex03
+          setup-command:
+          command: |
+            iverilog -o sim_ex03 tests/tb_ex03.v part01_repr/ex03.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex03 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex04
+        id: test_ex04
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex04
+          setup-command:
+          command: |
+            iverilog -o sim_ex04 tests/tb_ex04.v part01_repr/ex04.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex04 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex05
+        id: test_ex05
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex05
+          setup-command:
+          command: |
+            iverilog -o sim_ex05 tests/tb_ex05.v part01_repr/ex05.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex05 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex06
+        id: test_ex06
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex06
+          setup-command:
+          command: |
+            iverilog -o sim_ex06 tests/tb_ex06.v part02_arith/ex06.v || exit 1
+            vvp sim_ex06 2
+          timeout: 2
+          max-score: 1
+      - name: test_ex07
+        id: test_ex07
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex07
+          setup-command:
+          command: |
+            iverilog -o sim_ex07 tests/tb_ex07.v part02_arith/ex07.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex07 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex08
+        id: test_ex08
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex08
+          setup-command:
+          command: |
+            iverilog -o sim_ex08 tests/tb_ex08.v part02_arith/ex08.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex08 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex09
+        id: test_ex09
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex09
+          setup-command:
+          command: |
+            iverilog -o sim_ex09 tests/tb_ex09.v part02_arith/ex09.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex09 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex10
+        id: test_ex10
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex10
+          setup-command:
+          command: |
+            iverilog -o sim_ex10 tests/tb_ex10.v part02_arith/ex10.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex10 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex11
+        id: test_ex11
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex11
+          setup-command:
+          command: |
+            iverilog -o sim_ex11 tests/tb_ex11.v part03_bool/ex11.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex11 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex12
+        id: test_ex12
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex12
+          setup-command:
+          command: |
+            iverilog -o sim_ex12 tests/tb_ex12.v part03_bool/ex12.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex12 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex13
+        id: test_ex13
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex13
+          setup-command:
+          command: |
+            iverilog -o sim_ex13 tests/tb_ex13.v part03_bool/ex13.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex13 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex14
+        id: test_ex14
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex14
+          setup-command:
+          command: |
+            iverilog -o sim_ex14 tests/tb_ex14.v part03_bool/ex14.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex14 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex15
+        id: test_ex15
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex15
+          setup-command:
+          command: |
+            iverilog -o sim_ex15 tests/tb_ex15.v part03_bool/ex15.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex15 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex16
+        id: test_ex16
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex16
+          setup-command:
+          command: |
+            iverilog -o sim_ex16 tests/tb_ex16.v part04_kmap/ex16.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex16 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex17
+        id: test_ex17
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex17
+          setup-command:
+          command: |
+            iverilog -o sim_ex17 tests/tb_ex17.v part04_kmap/ex17.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex17 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex18
+        id: test_ex18
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex18
+          setup-command:
+          command: |
+            iverilog -o sim_ex18 tests/tb_ex18.v part04_kmap/ex18.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex18 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex19
+        id: test_ex19
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex19
+          setup-command:
+          command: |
+            iverilog -o sim_ex19 tests/tb_ex19.v part04_kmap/ex19.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex19 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex20
+        id: test_ex20
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex20
+          setup-command:
+          command: |
+            iverilog -o sim_ex20 tests/tb_ex20.v part04_kmap/ex20.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex20 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex21
+        id: test_ex21
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex21
+          command: |
+            iverilog -o sim_ex21 tests/tb_ex21.v part05_seq/ex21.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex21 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex22
+        id: test_ex22
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex22
+          setup-command:
+          command: |
+            iverilog -o sim_ex22 tests/tb_ex22.v part05_seq/ex22.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex22 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex23
+        id: test_ex23
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex23
+          setup-command:
+          command: |
+            iverilog -o sim_ex23 tests/tb_ex23.v part05_seq/ex23.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex23 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex24
+        id: test_ex24
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex24
+          setup-command:
+          command: |
+            iverilog -o sim_ex24 tests/tb_ex24.v part05_seq/ex24.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex24 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex25
+        id: test_ex25
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex25
+          setup-command:
+          command: |
+            iverilog -o sim_ex25 tests/tb_ex25.v part05_seq/ex25.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex25 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex26
+        id: test_ex26
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex26
+          setup-command:
+          command: |
+            iverilog -o sim_ex26 tests/tb_ex26.v part06_fsm/ex26.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex26 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex27
+        id: test_ex27
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex27
+          setup-command:
+          command: |
+            iverilog -o sim_ex27 tests/tb_ex27.v part06_fsm/ex27.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex27 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex28
+        id: test_ex28
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex28
+          setup-command:
+          command: |
+            iverilog -o sim_ex28 tests/tb_ex28.v part06_fsm/ex28.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex28 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex29
+        id: test_ex29
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex29
+          setup-command:
+          command: |
+            iverilog -o sim_ex29 tests/tb_ex29.v part06_fsm/ex29.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex29 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex30
+        id: test_ex30
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex30
+          setup-command:
+          command: |
+            iverilog -o sim_ex30 tests/tb_ex30.v part06_fsm/ex30.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex30 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex31
+        id: test_ex31
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex31
+          setup-command:
+          command: |
+            iverilog -o sim_ex31 tests/tb_ex31.v part07_impl/ex31.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex31 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex32
+        id: test_ex32
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex32
+          setup-command:
+          command: |
+            iverilog -o sim_ex32 tests/tb_ex32.v part07_impl/ex32.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex32 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex33
+        id: test_ex33
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex33
+          setup-command:
+          command: |
+            iverilog -o sim_ex33 tests/tb_ex33.v part07_impl/ex33.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex33 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex34
+        id: test_ex34
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex34
+          setup-command:
+          command: |
+            iverilog -o sim_ex34 tests/tb_ex34.v part07_impl/ex34.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex34 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex35
+        id: test_ex35
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex35
+          setup-command:
+          command: |
+            iverilog -o sim_ex35 tests/tb_ex35.v part07_impl/ex35.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex35 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex36
+        id: test_ex36
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex36
+          setup-command:
+          command: |
+            iverilog -o sim_ex36 tests/tb_ex36.v part08_arith/ex36.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex36 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex37
+        id: test_ex37
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex37
+          setup-command:
+          command: |
+            iverilog -o sim_ex37 tests/tb_ex37.v part08_arith/ex37.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex37 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex38
+        id: test_ex38
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex38
+          setup-command:
+          command: |
+            iverilog -o sim_ex38 tests/tb_ex38.v part08_arith/ex38.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex38 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex39
+        id: test_ex39
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex39
+          setup-command:
+          command: |
+            iverilog -o sim_ex39 tests/tb_ex39.v part08_arith/ex39.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex39 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex40
+        id: test_ex40
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex40
+          setup-command:
+          command: |
+            iverilog -o sim_ex40 tests/tb_ex40.v part08_arith/ex40.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex40 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex41
+        id: test_ex41
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex41
+          setup-command:
+          command: |
+            iverilog -o sim_ex41 tests/tb_ex41.v part09_alu/ex41.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex41 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex42
+        id: test_ex42
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex42
+          setup-command:
+          command: |
+            iverilog -o sim_ex42 tests/tb_ex42.v part09_alu/ex42.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex42 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex43
+        id: test_ex43
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex43
+          setup-command:
+          command: |
+            iverilog -o sim_ex43 tests/tb_ex43.v part09_alu/ex43.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex43 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex44
+        id: test_ex44
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex44
+          setup-command:
+          command: |
+            iverilog -o sim_ex44 tests/tb_ex44.v part09_alu/ex44.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex44 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex45
+        id: test_ex45
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex45
+          setup-command:
+          command: |
+            iverilog -o sim_ex45 tests/tb_ex45.v part09_alu/ex45.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex45 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_ex46
+        id: test_ex46
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex46
+          setup-command:
+          command: |
+            iverilog -o sim_ex46 tests/tb_ex46.v part10_system/ex46.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex46 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 2
+      - name: test_ex47
+        id: test_ex47
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex47
+          setup-command:
+          command: |
+            iverilog -o sim_ex47 tests/tb_ex47.v part10_system/ex47.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex47 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 2
+      - name: test_ex48
+        id: test_ex48
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex48
+          setup-command:
+          command: |
+            iverilog -o sim_ex48 tests/tb_ex48.v part10_system/ex48.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex48 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 2
+      - name: test_ex49
+        id: test_ex49
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex49
+          setup-command:
+          command: |
+            iverilog -o sim_ex49 tests/tb_ex49.v part10_system/ex49.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex49 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 2
+      - name: test_ex50
+        id: test_ex50
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_ex50
+          setup-command:
+          command: |
+            iverilog -o sim_ex50 tests/tb_ex50.v part10_system/ex50.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_ex50 > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 3
+          max-score: 5
+      - name: test_week5_ex1_not_always
+        id: test_week5_ex1_not_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_not_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex1_not_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_not_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_not_always tests/tb_week5_ex1_not_always.v week5/week5_ex1_not_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_not_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_not_assign
+        id: test_week5_ex1_not_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_not_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex1_not_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_not_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_not_assign tests/tb_week5_ex1_not_assign.v week5/week5_ex1_not_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_not_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_and_always
+        id: test_week5_ex1_and_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_and_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex1_and_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_and_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_and_always tests/tb_week5_ex1_and_always.v week5/week5_ex1_and_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_and_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_and_assign
+        id: test_week5_ex1_and_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_and_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex1_and_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_and_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_and_assign tests/tb_week5_ex1_and_assign.v week5/week5_ex1_and_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_and_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_or_always
+        id: test_week5_ex1_or_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_or_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex1_or_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_or_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_or_always tests/tb_week5_ex1_or_always.v week5/week5_ex1_or_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_or_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_or_assign
+        id: test_week5_ex1_or_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_or_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex1_or_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_or_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_or_assign tests/tb_week5_ex1_or_assign.v week5/week5_ex1_or_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_or_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_xor_always
+        id: test_week5_ex1_xor_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_xor_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex1_xor_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_xor_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_xor_always tests/tb_week5_ex1_xor_always.v week5/week5_ex1_xor_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_xor_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_xor_assign
+        id: test_week5_ex1_xor_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_xor_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex1_xor_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_xor_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_xor_assign tests/tb_week5_ex1_xor_assign.v week5/week5_ex1_xor_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_xor_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_nand_always
+        id: test_week5_ex1_nand_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_nand_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex1_nand_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_nand_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_nand_always tests/tb_week5_ex1_nand_always.v week5/week5_ex1_nand_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_nand_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_nand_assign
+        id: test_week5_ex1_nand_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_nand_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex1_nand_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_nand_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_nand_assign tests/tb_week5_ex1_nand_assign.v week5/week5_ex1_nand_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_nand_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_nor_always
+        id: test_week5_ex1_nor_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_nor_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex1_nor_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_nor_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_nor_always tests/tb_week5_ex1_nor_always.v week5/week5_ex1_nor_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_nor_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex1_nor_assign
+        id: test_week5_ex1_nor_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex1_nor_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex1_nor_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex1_nor_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex1_nor_assign tests/tb_week5_ex1_nor_assign.v week5/week5_ex1_nor_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex1_nor_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_mux_always
+        id: test_week5_ex2_mux_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_mux_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex2_mux_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_mux_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_mux_always tests/tb_week5_ex2_mux_always.v week5/week5_ex2_mux_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_mux_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_mux_assign
+        id: test_week5_ex2_mux_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_mux_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex2_mux_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_mux_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_mux_assign tests/tb_week5_ex2_mux_assign.v week5/week5_ex2_mux_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_mux_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_mux_structural
+        id: test_week5_ex2_mux_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_mux_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_mux_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex2_mux_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex2_mux_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_mux_structural tests/tb_week5_ex2_mux_structural.v week5/week5_ex2_mux_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_mux_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_decoder_always
+        id: test_week5_ex2_decoder_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_decoder_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex2_decoder_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_decoder_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_decoder_always tests/tb_week5_ex2_decoder_always.v week5/week5_ex2_decoder_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_decoder_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_decoder_assign
+        id: test_week5_ex2_decoder_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_decoder_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex2_decoder_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_decoder_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_decoder_assign tests/tb_week5_ex2_decoder_assign.v week5/week5_ex2_decoder_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_decoder_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_decoder_structural
+        id: test_week5_ex2_decoder_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_decoder_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_decoder_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex2_decoder_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex2_decoder_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_decoder_structural tests/tb_week5_ex2_decoder_structural.v week5/week5_ex2_decoder_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_decoder_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_encoder_always
+        id: test_week5_ex2_encoder_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_encoder_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex2_encoder_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_encoder_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_encoder_always tests/tb_week5_ex2_encoder_always.v week5/week5_ex2_encoder_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_encoder_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_encoder_assign
+        id: test_week5_ex2_encoder_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_encoder_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex2_encoder_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_encoder_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_encoder_assign tests/tb_week5_ex2_encoder_assign.v week5/week5_ex2_encoder_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_encoder_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex2_encoder_structural
+        id: test_week5_ex2_encoder_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex2_encoder_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex2_encoder_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex2_encoder_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex2_encoder_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex2_encoder_structural tests/tb_week5_ex2_encoder_structural.v week5/week5_ex2_encoder_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex2_encoder_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex3_truth_table_always
+        id: test_week5_ex3_truth_table_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex3_truth_table_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex3_truth_table_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex3_truth_table_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex3_truth_table_always tests/tb_week5_ex3_truth_table_always.v week5/week5_ex3_truth_table_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex3_truth_table_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex3_truth_table_assign
+        id: test_week5_ex3_truth_table_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex3_truth_table_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex3_truth_table_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex3_truth_table_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex3_truth_table_assign tests/tb_week5_ex3_truth_table_assign.v week5/week5_ex3_truth_table_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex3_truth_table_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex3_truth_table_structural
+        id: test_week5_ex3_truth_table_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex3_truth_table_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex3_truth_table_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex3_truth_table_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex3_truth_table_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex3_truth_table_structural tests/tb_week5_ex3_truth_table_structural.v week5/week5_ex3_truth_table_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex3_truth_table_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex4_simple_circuit_always
+        id: test_week5_ex4_simple_circuit_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex4_simple_circuit_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex4_simple_circuit_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex4_simple_circuit_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex4_simple_circuit_always tests/tb_week5_ex4_simple_circuit_always.v week5/week5_ex4_simple_circuit_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex4_simple_circuit_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex4_simple_circuit_assign
+        id: test_week5_ex4_simple_circuit_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex4_simple_circuit_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex4_simple_circuit_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex4_simple_circuit_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex4_simple_circuit_assign tests/tb_week5_ex4_simple_circuit_assign.v week5/week5_ex4_simple_circuit_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex4_simple_circuit_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex4_simple_circuit_structural
+        id: test_week5_ex4_simple_circuit_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex4_simple_circuit_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex4_simple_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex4_simple_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex4_simple_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex4_simple_circuit_structural tests/tb_week5_ex4_simple_circuit_structural.v week5/week5_ex4_simple_circuit_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex4_simple_circuit_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex5_advanced_circuit_always
+        id: test_week5_ex5_advanced_circuit_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex5_advanced_circuit_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex5_advanced_circuit_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex5_advanced_circuit_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex5_advanced_circuit_always tests/tb_week5_ex5_advanced_circuit_always.v week5/week5_ex5_advanced_circuit_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex5_advanced_circuit_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex5_advanced_circuit_assign
+        id: test_week5_ex5_advanced_circuit_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex5_advanced_circuit_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex5_advanced_circuit_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex5_advanced_circuit_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex5_advanced_circuit_assign tests/tb_week5_ex5_advanced_circuit_assign.v week5/week5_ex5_advanced_circuit_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex5_advanced_circuit_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex5_advanced_circuit_structural
+        id: test_week5_ex5_advanced_circuit_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex5_advanced_circuit_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex5_advanced_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex5_advanced_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex5_advanced_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex5_advanced_circuit_structural tests/tb_week5_ex5_advanced_circuit_structural.v week5/week5_ex5_advanced_circuit_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex5_advanced_circuit_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex6_challenge_circuit_always
+        id: test_week5_ex6_challenge_circuit_always
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex6_challenge_circuit_always
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'always'"
+            if ! grep -q "always" week5/week5_ex6_challenge_circuit_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'always' block but 'always' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex6_challenge_circuit_always.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (always) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex6_challenge_circuit_always tests/tb_week5_ex6_challenge_circuit_always.v week5/week5_ex6_challenge_circuit_always.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex6_challenge_circuit_always > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex6_challenge_circuit_assign
+        id: test_week5_ex6_challenge_circuit_assign
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex6_challenge_circuit_assign
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain 'assign'"
+            if ! grep -q "assign" week5/week5_ex6_challenge_circuit_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use 'assign' statement but 'assign' not found"
+              exit 1
+            fi
+            if grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex6_challenge_circuit_assign.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use behavioral style (assign) but contains structural gates"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex6_challenge_circuit_assign tests/tb_week5_ex6_challenge_circuit_assign.v week5/week5_ex6_challenge_circuit_assign.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex6_challenge_circuit_assign > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: test_week5_ex6_challenge_circuit_structural
+        id: test_week5_ex6_challenge_circuit_structural
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: test_week5_ex6_challenge_circuit_structural
+          setup-command:
+          command: |
+            echo "🔍 Checking implementation style: must contain structural gates"
+            if ! grep -qE "\b(and|or|not|nand|nor|xor)\s*\(" week5/week5_ex6_challenge_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style (gates) but no gates found"
+              exit 1
+            fi
+            if grep -q "always" week5/week5_ex6_challenge_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'always' block"
+              exit 1
+            fi
+            if grep -q "assign" week5/week5_ex6_challenge_circuit_structural.v; then
+              echo "❌ IMPLEMENTATION STYLE FAIL: File must use structural style but contains 'assign' statement"
+              exit 1
+            fi
+            echo "✅ Implementation style check passed"
+            iverilog -o sim_week5_ex6_challenge_circuit_structural tests/tb_week5_ex6_challenge_circuit_structural.v week5/week5_ex6_challenge_circuit_structural.v || exit 1
+            echo ""
+            echo "========== TEST OUTPUT START =========="
+            vvp sim_week5_ex6_challenge_circuit_structural > test_output.txt 2>&1 || exit 1
+            cat test_output.txt
+            echo "========== TEST OUTPUT END =========="
+            echo ""
+            echo "========== GRADING VALIDATION =========="
+            if grep -qi "FAIL" test_output.txt; then echo "❌ GRADING FAIL: Test contains FAIL messages"; exit 1; fi
+            if grep -qi "ERROR" test_output.txt; then echo "❌ GRADING FAIL: Test contains ERROR messages"; exit 1; fi
+            if grep -qi "TESTS FAILED" test_output.txt; then echo "❌ GRADING FAIL: Tests reported FAILED"; exit 1; fi
+            if ! grep -qiE "ALL TESTS PASSED|PASS.*successfully|PASS:|^PASS$|\bPASS\b" test_output.txt; then echo "❌ GRADING FAIL: No PASS message found"; exit 1; fi
+            echo "✅ GRADING PASS: All checks passed, awarding points"
+          timeout: 2
+          max-score: 1
+      - name: Autograding Reporter
+        if: always()
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          TEST_EX00_HELLO_RESULTS: "${{steps.test_ex00_hello.outputs.result}}"
+          TEST_EX00_RESULTS: "${{steps.test_ex00.outputs.result}}"
+          TEST_EX01_RESULTS: "${{steps.test_ex01.outputs.result}}"
+          TEST_EX02_RESULTS: "${{steps.test_ex02.outputs.result}}"
+          TEST_EX03_RESULTS: "${{steps.test_ex03.outputs.result}}"
+          TEST_EX04_RESULTS: "${{steps.test_ex04.outputs.result}}"
+          TEST_EX05_RESULTS: "${{steps.test_ex05.outputs.result}}"
+          TEST_EX06_RESULTS: "${{steps.test_ex06.outputs.result}}"
+          TEST_EX07_RESULTS: "${{steps.test_ex07.outputs.result}}"
+          TEST_EX08_RESULTS: "${{steps.test_ex08.outputs.result}}"
+          TEST_EX09_RESULTS: "${{steps.test_ex09.outputs.result}}"
+          TEST_EX10_RESULTS: "${{steps.test_ex10.outputs.result}}"
+          TEST_EX11_RESULTS: "${{steps.test_ex11.outputs.result}}"
+          TEST_EX12_RESULTS: "${{steps.test_ex12.outputs.result}}"
+          TEST_EX13_RESULTS: "${{steps.test_ex13.outputs.result}}"
+          TEST_EX14_RESULTS: "${{steps.test_ex14.outputs.result}}"
+          TEST_EX15_RESULTS: "${{steps.test_ex15.outputs.result}}"
+          TEST_EX16_RESULTS: "${{steps.test_ex16.outputs.result}}"
+          TEST_EX17_RESULTS: "${{steps.test_ex17.outputs.result}}"
+          TEST_EX18_RESULTS: "${{steps.test_ex18.outputs.result}}"
+          TEST_EX19_RESULTS: "${{steps.test_ex19.outputs.result}}"
+          TEST_EX20_RESULTS: "${{steps.test_ex20.outputs.result}}"
+          TEST_EX21_RESULTS: "${{steps.test_ex21.outputs.result}}"
+          TEST_EX22_RESULTS: "${{steps.test_ex22.outputs.result}}"
+          TEST_EX23_RESULTS: "${{steps.test_ex23.outputs.result}}"
+          TEST_EX24_RESULTS: "${{steps.test_ex24.outputs.result}}"
+          TEST_EX25_RESULTS: "${{steps.test_ex25.outputs.result}}"
+          TEST_EX26_RESULTS: "${{steps.test_ex26.outputs.result}}"
+          TEST_EX27_RESULTS: "${{steps.test_ex27.outputs.result}}"
+          TEST_EX28_RESULTS: "${{steps.test_ex28.outputs.result}}"
+          TEST_EX29_RESULTS: "${{steps.test_ex29.outputs.result}}"
+          TEST_EX30_RESULTS: "${{steps.test_ex30.outputs.result}}"
+          TEST_EX31_RESULTS: "${{steps.test_ex31.outputs.result}}"
+          TEST_EX32_RESULTS: "${{steps.test_ex32.outputs.result}}"
+          TEST_EX33_RESULTS: "${{steps.test_ex33.outputs.result}}"
+          TEST_EX34_RESULTS: "${{steps.test_ex34.outputs.result}}"
+          TEST_EX35_RESULTS: "${{steps.test_ex35.outputs.result}}"
+          TEST_EX36_RESULTS: "${{steps.test_ex36.outputs.result}}"
+          TEST_EX37_RESULTS: "${{steps.test_ex37.outputs.result}}"
+          TEST_EX38_RESULTS: "${{steps.test_ex38.outputs.result}}"
+          TEST_EX39_RESULTS: "${{steps.test_ex39.outputs.result}}"
+          TEST_EX40_RESULTS: "${{steps.test_ex40.outputs.result}}"
+          TEST_EX41_RESULTS: "${{steps.test_ex41.outputs.result}}"
+          TEST_EX42_RESULTS: "${{steps.test_ex42.outputs.result}}"
+          TEST_EX43_RESULTS: "${{steps.test_ex43.outputs.result}}"
+          TEST_EX44_RESULTS: "${{steps.test_ex44.outputs.result}}"
+          TEST_EX45_RESULTS: "${{steps.test_ex45.outputs.result}}"
+          TEST_EX46_RESULTS: "${{steps.test_ex46.outputs.result}}"
+          TEST_EX47_RESULTS: "${{steps.test_ex47.outputs.result}}"
+          TEST_EX48_RESULTS: "${{steps.test_ex48.outputs.result}}"
+          TEST_EX49_RESULTS: "${{steps.test_ex49.outputs.result}}"
+          TEST_EX50_RESULTS: "${{steps.test_ex50.outputs.result}}"
+          TEST_WEEK5_EX1_NOT_ALWAYS_RESULTS: "${{steps.test_week5_ex1_not_always.outputs.result}}"
+          TEST_WEEK5_EX1_NOT_ASSIGN_RESULTS: "${{steps.test_week5_ex1_not_assign.outputs.result}}"
+          TEST_WEEK5_EX1_AND_ALWAYS_RESULTS: "${{steps.test_week5_ex1_and_always.outputs.result}}"
+          TEST_WEEK5_EX1_AND_ASSIGN_RESULTS: "${{steps.test_week5_ex1_and_assign.outputs.result}}"
+          TEST_WEEK5_EX1_OR_ALWAYS_RESULTS: "${{steps.test_week5_ex1_or_always.outputs.result}}"
+          TEST_WEEK5_EX1_OR_ASSIGN_RESULTS: "${{steps.test_week5_ex1_or_assign.outputs.result}}"
+          TEST_WEEK5_EX1_XOR_ALWAYS_RESULTS: "${{steps.test_week5_ex1_xor_always.outputs.result}}"
+          TEST_WEEK5_EX1_XOR_ASSIGN_RESULTS: "${{steps.test_week5_ex1_xor_assign.outputs.result}}"
+          TEST_WEEK5_EX1_NAND_ALWAYS_RESULTS: "${{steps.test_week5_ex1_nand_always.outputs.result}}"
+          TEST_WEEK5_EX1_NAND_ASSIGN_RESULTS: "${{steps.test_week5_ex1_nand_assign.outputs.result}}"
+          TEST_WEEK5_EX1_NOR_ALWAYS_RESULTS: "${{steps.test_week5_ex1_nor_always.outputs.result}}"
+          TEST_WEEK5_EX1_NOR_ASSIGN_RESULTS: "${{steps.test_week5_ex1_nor_assign.outputs.result}}"
+          TEST_WEEK5_EX2_MUX_ALWAYS_RESULTS: "${{steps.test_week5_ex2_mux_always.outputs.result}}"
+          TEST_WEEK5_EX2_MUX_ASSIGN_RESULTS: "${{steps.test_week5_ex2_mux_assign.outputs.result}}"
+          TEST_WEEK5_EX2_MUX_STRUCTURAL_RESULTS: "${{steps.test_week5_ex2_mux_structural.outputs.result}}"
+          TEST_WEEK5_EX2_DECODER_ALWAYS_RESULTS: "${{steps.test_week5_ex2_decoder_always.outputs.result}}"
+          TEST_WEEK5_EX2_DECODER_ASSIGN_RESULTS: "${{steps.test_week5_ex2_decoder_assign.outputs.result}}"
+          TEST_WEEK5_EX2_DECODER_STRUCTURAL_RESULTS: "${{steps.test_week5_ex2_decoder_structural.outputs.result}}"
+          TEST_WEEK5_EX2_ENCODER_ALWAYS_RESULTS: "${{steps.test_week5_ex2_encoder_always.outputs.result}}"
+          TEST_WEEK5_EX2_ENCODER_ASSIGN_RESULTS: "${{steps.test_week5_ex2_encoder_assign.outputs.result}}"
+          TEST_WEEK5_EX2_ENCODER_STRUCTURAL_RESULTS: "${{steps.test_week5_ex2_encoder_structural.outputs.result}}"
+          TEST_WEEK5_EX3_TRUTH_TABLE_ALWAYS_RESULTS: "${{steps.test_week5_ex3_truth_table_always.outputs.result}}"
+          TEST_WEEK5_EX3_TRUTH_TABLE_ASSIGN_RESULTS: "${{steps.test_week5_ex3_truth_table_assign.outputs.result}}"
+          TEST_WEEK5_EX3_TRUTH_TABLE_STRUCTURAL_RESULTS: "${{steps.test_week5_ex3_truth_table_structural.outputs.result}}"
+          TEST_WEEK5_EX4_SIMPLE_CIRCUIT_ALWAYS_RESULTS: "${{steps.test_week5_ex4_simple_circuit_always.outputs.result}}"
+          TEST_WEEK5_EX4_SIMPLE_CIRCUIT_ASSIGN_RESULTS: "${{steps.test_week5_ex4_simple_circuit_assign.outputs.result}}"
+          TEST_WEEK5_EX4_SIMPLE_CIRCUIT_STRUCTURAL_RESULTS: "${{steps.test_week5_ex4_simple_circuit_structural.outputs.result}}"
+          TEST_WEEK5_EX5_ADVANCED_CIRCUIT_ALWAYS_RESULTS: "${{steps.test_week5_ex5_advanced_circuit_always.outputs.result}}"
+          TEST_WEEK5_EX5_ADVANCED_CIRCUIT_ASSIGN_RESULTS: "${{steps.test_week5_ex5_advanced_circuit_assign.outputs.result}}"
+          TEST_WEEK5_EX5_ADVANCED_CIRCUIT_STRUCTURAL_RESULTS: "${{steps.test_week5_ex5_advanced_circuit_structural.outputs.result}}"
+          TEST_WEEK5_EX6_CHALLENGE_CIRCUIT_ALWAYS_RESULTS: "${{steps.test_week5_ex6_challenge_circuit_always.outputs.result}}"
+          TEST_WEEK5_EX6_CHALLENGE_CIRCUIT_ASSIGN_RESULTS: "${{steps.test_week5_ex6_challenge_circuit_assign.outputs.result}}"
+          TEST_WEEK5_EX6_CHALLENGE_CIRCUIT_STRUCTURAL_RESULTS: "${{steps.test_week5_ex6_challenge_circuit_structural.outputs.result}}"
+        with:
+          runners: test_ex00_hello,test_ex00,test_ex01,test_ex02,test_ex03,test_ex04,test_ex05,test_ex06,test_ex07,test_ex08,test_ex09,test_ex10,test_ex11,test_ex12,test_ex13,test_ex14,test_ex15,test_ex16,test_ex17,test_ex18,test_ex19,test_ex20,test_ex21,test_ex22,test_ex23,test_ex24,test_ex25,test_ex26,test_ex27,test_ex28,test_ex29,test_ex30,test_ex31,test_ex32,test_ex33,test_ex34,test_ex35,test_ex36,test_ex37,test_ex38,test_ex39,test_ex40,test_ex41,test_ex42,test_ex43,test_ex44,test_ex45,test_ex46,test_ex47,test_ex48,test_ex49,test_ex50,test_week5_ex1_not_always,test_week5_ex1_not_assign,test_week5_ex1_and_always,test_week5_ex1_and_assign,test_week5_ex1_or_always,test_week5_ex1_or_assign,test_week5_ex1_xor_always,test_week5_ex1_xor_assign,test_week5_ex1_nand_always,test_week5_ex1_nand_assign,test_week5_ex1_nor_always,test_week5_ex1_nor_assign,test_week5_ex2_mux_always,test_week5_ex2_mux_assign,test_week5_ex2_mux_structural,test_week5_ex2_decoder_always,test_week5_ex2_decoder_assign,test_week5_ex2_decoder_structural,test_week5_ex2_encoder_always,test_week5_ex2_encoder_assign,test_week5_ex2_encoder_structural,test_week5_ex3_truth_table_always,test_week5_ex3_truth_table_assign,test_week5_ex3_truth_table_structural,test_week5_ex4_simple_circuit_always,test_week5_ex4_simple_circuit_assign,test_week5_ex4_simple_circuit_structural,test_week5_ex5_advanced_circuit_always,test_week5_ex5_advanced_circuit_assign,test_week5_ex5_advanced_circuit_structural,test_week5_ex6_challenge_circuit_always,test_week5_ex6_challenge_circuit_assign,test_week5_ex6_challenge_circuit_structural
