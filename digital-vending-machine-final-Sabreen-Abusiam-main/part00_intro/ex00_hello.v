@@ -1,4 +1,3 @@
-// Verified hello world
 // ex00_hello.v - "Hello Verilog!
 // Your first Verilog program that prints a messagaae
 
