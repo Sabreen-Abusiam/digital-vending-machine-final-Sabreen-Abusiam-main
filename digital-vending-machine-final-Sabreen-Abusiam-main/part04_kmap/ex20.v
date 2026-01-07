@@ -3,6 +3,7 @@
 // Decoders are used to select specific products or memory locations in the vending machine.
 module ex20(
 
+
     // 2:4 Decoder
     input  [1:0] A2,
     output [3:0] Y2,
