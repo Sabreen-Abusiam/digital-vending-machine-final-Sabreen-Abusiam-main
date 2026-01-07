@@ -2,9 +2,17 @@
 // WHAT TO DO: Add an enable signal that controls when the flip-flop updates its value.
 // Enable lets you pause storing new values - useful for controlling when coins are counted.
 module ex23(
-
+    input D,
+    input clk,
+    input enable,
+    output reg Q
 );
 
+always @(posedge clk) begin
+    if (enable)
+        Q <= D;
+
+end
 
 endmodule
 
