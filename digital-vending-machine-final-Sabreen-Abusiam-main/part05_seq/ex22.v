@@ -4,12 +4,15 @@
 module ex22(
     input D,
     input clk,
+    input reset,
     output reg Q
 );
 
 always @(posedge clk) begin
-    Q <= D;
+    if (reset)
+        Q <= 1'b0;
+    else
+        Q <= D;
 end
-
 endmodule
 
