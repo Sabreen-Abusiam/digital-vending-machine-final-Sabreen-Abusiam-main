@@ -8,7 +8,6 @@ module ex17(
     input D,
     output F
 );
-
 assign F = (~B & ~D) | (~B & C) | (~A & ~C & D);
 
   // F = (~B&~D) | (~B&~C) | (~A&~C&D)
