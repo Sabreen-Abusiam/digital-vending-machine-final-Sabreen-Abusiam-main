@@ -2,6 +2,7 @@
 // WHAT TO DO: Create a decoder that converts binary input to one-hot output (one line active).
 // Decoders are used to select specific products or memory locations in the vending machine.
 module ex20(
+
     // 2:4 Decoder
     input  [1:0] A2,
     output [3:0] Y2,

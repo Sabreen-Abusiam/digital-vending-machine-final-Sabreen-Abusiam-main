@@ -3,8 +3,13 @@
 // It remembers values between clock cycles
 
 module ex21(
- 
+    input D,
+    input clk,
+    output reg Q
 );
 
+always @(posedge clk) begin
+    Q <= D;
+end
 
 endmodule
