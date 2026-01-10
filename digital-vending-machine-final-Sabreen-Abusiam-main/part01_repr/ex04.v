@@ -3,11 +3,14 @@
 // This is your first decision-making circuit - it checks conditions and outputs valid/invalid.
 module ex04(
     input  [3:0] coin_input,
-    output        is_valid
+    output       is_valid,
+    output [3:0] coin_value
 );
 
 assign is_valid = (coin_input == 4'd1) ||
                   (coin_input == 4'd5) ||
                   (coin_input == 4'd10);
+
+assign coin_value = is_valid ? coin_input : 4'd0;
 
 endmodule
