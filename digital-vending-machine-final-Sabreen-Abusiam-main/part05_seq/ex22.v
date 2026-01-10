@@ -2,17 +2,17 @@
 // WHAT TO DO: Add a reset signal to your flip-flop so it can be cleared to zero.
 // Reset is essential for initializing the vending machine to a known starting state.
 module ex22(
-    input D,
-    input clk,
-    input reset,
-    output reg Q
+    input  d,
+    input  clk,
+    input  rst,
+    output reg q
 );
 
 always @(posedge clk) begin
-    if (reset)
-        Q <= 1'b0;
+    if (rst)
+        q <= 1'b0;
     else
-        Q <= D;
+        q <= d;
 end
 
 endmodule
