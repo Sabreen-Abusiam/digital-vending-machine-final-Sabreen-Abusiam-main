@@ -7,7 +7,6 @@ module ex12(
     input C,
     output F
 );
-
     assign F = (A | B | C) & (~A | B | ~C);
 
 endmodule
