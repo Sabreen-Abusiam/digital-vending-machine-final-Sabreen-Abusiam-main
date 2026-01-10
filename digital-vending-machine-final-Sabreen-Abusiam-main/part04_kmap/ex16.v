@@ -2,14 +2,13 @@
 // WHAT TO DO: Implement a simplified logic function derived from a 3-variable Karnaugh map.
 // K-maps are visual tools that help you minimize Boolean expressions for efficient circuits.
 module ex16(
-
     input  A,
     input  B,
     input  C,
     output F
 );
 
-assign F = C;
+    assign F = (~B & ~C) | (A & ~B) | (A & C);
 
 endmodule
 
