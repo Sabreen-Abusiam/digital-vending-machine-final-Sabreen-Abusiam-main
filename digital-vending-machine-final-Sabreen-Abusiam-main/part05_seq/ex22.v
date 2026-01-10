@@ -14,5 +14,6 @@ always @(posedge clk) begin
     else
         Q <= D;
 end
+
 endmodule
 
