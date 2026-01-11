@@ -5,7 +5,7 @@
 // ALU module for arithmetic operations
 `timescale 1ns/1ps
 
-module alu_vending (
+module alu_vending(
   input  wire [4:0] a,
   input  wire [4:0] b,
   input  wire [2:0] op,
